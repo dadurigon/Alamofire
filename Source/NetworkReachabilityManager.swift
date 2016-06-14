@@ -63,7 +63,7 @@ public class NetworkReachabilityManager {
 
     /// A closure executed when the network reachability status changes. The closure takes a single argument: the 
     /// network reachability status.
-    public typealias Listener = NetworkReachabilityStatus -> Void
+    public typealias Listener = (NetworkReachabilityStatus) -> Void
 
     // MARK: - Properties
 
@@ -79,11 +79,11 @@ public class NetworkReachabilityManager {
     /// The current network reachability status.
     public var networkReachabilityStatus: NetworkReachabilityStatus {
         guard let flags = self.flags else { return .Unknown }
-        return networkReachabilityStatusForFlags(flags)
+        return networkReachabilityStatusForFlags(flags: flags)
     }
 
     /// The dispatch queue to execute the `listener` closure on.
-    public var listenerQueue: dispatch_queue_t = dispatch_get_main_queue()
+    public var listenerQueue: DispatchQueue = DispatchQueue.main
 
     /// A closure executed when the network reachability status changes.
     public var listener: Listener?
@@ -116,23 +116,32 @@ public class NetworkReachabilityManager {
     }
 
     /**
-        Creates a `NetworkReachabilityManager` instance that monitors the address 0.0.0.0.
-
-        Reachability treats the 0.0.0.0 address as a special token that causes it to monitor the general routing
-        status of the device, both IPv4 and IPv6.
+        Creates a `NetworkReachabilityManager` instance with the default socket IPv4 or IPv6 address.
 
         - returns: The new `NetworkReachabilityManager` instance.
-    */
+     */
     public convenience init?() {
-        var address = sockaddr_in()
-        address.sin_len = UInt8(sizeofValue(address))
-        address.sin_family = sa_family_t(AF_INET)
+        if #available(iOS 9.0, OSX 10.10, *) {
+            var address = sockaddr_in6()
+            address.sin6_len = UInt8(sizeofValue(address))
+            address.sin6_family = sa_family_t(AF_INET6)
 
-        guard let reachability = withUnsafePointer(&address, {
-            SCNetworkReachabilityCreateWithAddress(nil, UnsafePointer($0))
-        }) else { return nil }
+            guard let reachability = withUnsafePointer(&address, {
+                SCNetworkReachabilityCreateWithAddress(nil, UnsafePointer($0))
+            }) else { return nil }
 
-        self.init(reachability: reachability)
+            self.init(reachability: reachability)
+        } else {
+            var address = sockaddr_in()
+            address.sin_len = UInt8(sizeofValue(address))
+            address.sin_family = sa_family_t(AF_INET)
+
+            guard let reachability = withUnsafePointer(&address, {
+                SCNetworkReachabilityCreateWithAddress(nil, UnsafePointer($0))
+            }) else { return nil }
+
+            self.init(reachability: reachability)
+        }
     }
 
     private init(reachability: SCNetworkReachability) {
@@ -153,22 +162,22 @@ public class NetworkReachabilityManager {
     */
     public func startListening() -> Bool {
         var context = SCNetworkReachabilityContext(version: 0, info: nil, retain: nil, release: nil, copyDescription: nil)
-        context.info = UnsafeMutablePointer(Unmanaged.passUnretained(self).toOpaque())
+        context.info = UnsafeMutablePointer(OpaquePointer(bitPattern: Unmanaged.passUnretained(self)))
 
         let callbackEnabled = SCNetworkReachabilitySetCallback(
             reachability,
             { (_, flags, info) in
-                let reachability = Unmanaged<NetworkReachabilityManager>.fromOpaque(COpaquePointer(info)).takeUnretainedValue()
-                reachability.notifyListener(flags)
+                let reachability = Unmanaged<NetworkReachabilityManager>.fromOpaque(OpaquePointer(info!)).takeUnretainedValue()
+                reachability.notifyListener(flags: flags)
             },
             &context
         )
 
         let queueEnabled = SCNetworkReachabilitySetDispatchQueue(reachability, listenerQueue)
 
-        dispatch_async(listenerQueue) {
+        listenerQueue.async {
             self.previousFlags = SCNetworkReachabilityFlags()
-            self.notifyListener(self.flags ?? SCNetworkReachabilityFlags())
+            self.notifyListener(flags: self.flags ?? SCNetworkReachabilityFlags())
         }
 
         return callbackEnabled && queueEnabled
@@ -188,20 +197,20 @@ public class NetworkReachabilityManager {
         guard previousFlags != flags else { return }
         previousFlags = flags
 
-        listener?(networkReachabilityStatusForFlags(flags))
+        listener?(networkReachabilityStatusForFlags(flags: flags))
     }
 
     // MARK: - Internal - Network Reachability Status
 
     func networkReachabilityStatusForFlags(flags: SCNetworkReachabilityFlags) -> NetworkReachabilityStatus {
-        guard flags.contains(.Reachable) else { return .NotReachable }
+        guard flags.contains(.reachable) else { return .NotReachable }
 
         var networkStatus: NetworkReachabilityStatus = .NotReachable
 
-        if !flags.contains(.ConnectionRequired) { networkStatus = .Reachable(.EthernetOrWiFi) }
+        if !flags.contains(.connectionRequired) { networkStatus = .Reachable(.EthernetOrWiFi) }
 
-        if flags.contains(.ConnectionOnDemand) || flags.contains(.ConnectionOnTraffic) {
-            if !flags.contains(.InterventionRequired) { networkStatus = .Reachable(.EthernetOrWiFi) }
+        if flags.contains(.connectionOnDemand) || flags.contains(.connectionOnTraffic) {
+            if !flags.contains(.interventionRequired) { networkStatus = .Reachable(.EthernetOrWiFi) }
         }
 
         #if os(iOS)

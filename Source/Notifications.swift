@@ -26,22 +26,22 @@ import Foundation
 
 /// Contains all the `NSNotification` names posted by Alamofire with descriptions of each notification's payload.
 public struct Notifications {
-    /// Used as a namespace for all `NSURLSessionTask` related notifications.
+    /// Used as a namespace for all `URLSessionTask` related notifications.
     public struct Task {
-        /// Notification posted when an `NSURLSessionTask` is resumed. The notification `object` contains the resumed
-        /// `NSURLSessionTask`.
-        public static let DidResume = "com.alamofire.notifications.task.didResume"
+        /// Notification posted when an `URLSessionTask` is resumed. The notification `object` contains the resumed
+        /// `URLSessionTask`.
+        public static let DidResume = NSNotification.Name("com.alamofire.notifications.task.didResume")
 
-        /// Notification posted when an `NSURLSessionTask` is suspended. The notification `object` contains the 
-        /// suspended `NSURLSessionTask`.
-        public static let DidSuspend = "com.alamofire.notifications.task.didSuspend"
+        /// Notification posted when an `URLSessionTask` is suspended. The notification `object` contains the 
+        /// suspended `URLSessionTask`.
+        public static let DidSuspend = NSNotification.Name("com.alamofire.notifications.task.didSuspend")
 
-        /// Notification posted when an `NSURLSessionTask` is cancelled. The notification `object` contains the
-        /// cancelled `NSURLSessionTask`.
-        public static let DidCancel = "com.alamofire.notifications.task.didCancel"
+        /// Notification posted when an `URLSessionTask` is cancelled. The notification `object` contains the
+        /// cancelled `URLSessionTask`.
+        public static let DidCancel = NSNotification.Name("com.alamofire.notifications.task.didCancel")
 
-        /// Notification posted when an `NSURLSessionTask` is completed. The notification `object` contains the
-        /// completed `NSURLSessionTask`.
-        public static let DidComplete = "com.alamofire.notifications.task.didComplete"
+        /// Notification posted when an `URLSessionTask` is completed. The notification `object` contains the
+        /// completed `URLSessionTask`.
+        public static let DidComplete = NSNotification.Name("com.alamofire.notifications.task.didComplete")
     }
 }

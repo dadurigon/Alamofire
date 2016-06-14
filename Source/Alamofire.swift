@@ -49,21 +49,21 @@ extension String: URLStringConvertible {
     }
 }
 
-extension NSURL: URLStringConvertible {
+extension URL: URLStringConvertible {
     public var URLString: String {
-        return absoluteString
+        return absoluteString!
     }
 }
 
-extension NSURLComponents: URLStringConvertible {
+extension URLComponents: URLStringConvertible {
     public var URLString: String {
-        return URL!.URLString
+        return url!.URLString
     }
 }
 
-extension NSURLRequest: URLStringConvertible {
+extension URLRequest: URLStringConvertible {
     public var URLString: String {
-        return URL!.URLString
+        return url!.URLString
     }
 }
 
@@ -74,25 +74,25 @@ extension NSURLRequest: URLStringConvertible {
 */
 public protocol URLRequestConvertible {
     /// The URL request.
-    var URLRequest: NSMutableURLRequest { get }
+    var urlRequest: URLRequest { get }
 }
 
-extension NSURLRequest: URLRequestConvertible {
-    public var URLRequest: NSMutableURLRequest {
-        return self.mutableCopy() as! NSMutableURLRequest
+extension URLRequest: URLRequestConvertible {
+    public var urlRequest: URLRequest {
+        return self
     }
 }
 
 // MARK: - Convenience
 
-func URLRequest(
+func urlRequest(
     method: Method,
     _ URLString: URLStringConvertible,
     headers: [String: String]? = nil)
-    -> NSMutableURLRequest
+    -> URLRequest
 {
-    let mutableURLRequest = NSMutableURLRequest(URL: NSURL(string: URLString.URLString)!)
-    mutableURLRequest.HTTPMethod = method.rawValue
+    var mutableURLRequest = URLRequest(url: URL(string: URLString.URLString)! as URL)
+    mutableURLRequest.httpMethod = method.rawValue
 
     if let headers = headers {
         for (headerField, headerValue) in headers {
@@ -126,7 +126,7 @@ public func request(
     -> Request
 {
     return Manager.sharedInstance.request(
-        method,
+        method: method,
         URLString,
         parameters: parameters,
         encoding: encoding,
@@ -143,8 +143,8 @@ public func request(
 
     - returns: The created request.
 */
-public func request(URLRequest: URLRequestConvertible) -> Request {
-    return Manager.sharedInstance.request(URLRequest.URLRequest)
+public func request(urlRequest: URLRequestConvertible) -> Request {
+    return Manager.sharedInstance.request(urlRequest: urlRequest.urlRequest)
 }
 
 // MARK: - Upload Methods
@@ -165,10 +165,10 @@ public func upload(
     method: Method,
     _ URLString: URLStringConvertible,
     headers: [String: String]? = nil,
-    file: NSURL)
+    file: URL)
     -> Request
 {
-    return Manager.sharedInstance.upload(method, URLString, headers: headers, file: file)
+    return Manager.sharedInstance.upload(method: method, URLString, headers: headers, file: file)
 }
 
 /**
@@ -179,8 +179,8 @@ public func upload(
 
     - returns: The created upload request.
 */
-public func upload(URLRequest: URLRequestConvertible, file: NSURL) -> Request {
-    return Manager.sharedInstance.upload(URLRequest, file: file)
+public func upload(urlRequest: URLRequestConvertible, file: URL) -> Request {
+    return Manager.sharedInstance.upload(urlRequest: urlRequest, file: file)
 }
 
 // MARK: Data
@@ -199,10 +199,10 @@ public func upload(
     method: Method,
     _ URLString: URLStringConvertible,
     headers: [String: String]? = nil,
-    data: NSData)
+    data: Data)
     -> Request
 {
-    return Manager.sharedInstance.upload(method, URLString, headers: headers, data: data)
+    return Manager.sharedInstance.upload(method: method, URLString, headers: headers, data: data)
 }
 
 /**
@@ -213,8 +213,8 @@ public func upload(
 
     - returns: The created upload request.
 */
-public func upload(URLRequest: URLRequestConvertible, data: NSData) -> Request {
-    return Manager.sharedInstance.upload(URLRequest, data: data)
+public func upload(urlRequest: URLRequestConvertible, data: Data) -> Request {
+    return Manager.sharedInstance.upload(urlRequest: urlRequest, data: data)
 }
 
 // MARK: Stream
@@ -233,10 +233,10 @@ public func upload(
     method: Method,
     _ URLString: URLStringConvertible,
     headers: [String: String]? = nil,
-    stream: NSInputStream)
+    stream: InputStream)
     -> Request
 {
-    return Manager.sharedInstance.upload(method, URLString, headers: headers, stream: stream)
+    return Manager.sharedInstance.upload(method: method, URLString, headers: headers, stream: stream)
 }
 
 /**
@@ -247,8 +247,8 @@ public func upload(
 
     - returns: The created upload request.
 */
-public func upload(URLRequest: URLRequestConvertible, stream: NSInputStream) -> Request {
-    return Manager.sharedInstance.upload(URLRequest, stream: stream)
+public func upload(urlRequest: URLRequestConvertible, stream: InputStream) -> Request {
+    return Manager.sharedInstance.upload(urlRequest: urlRequest, stream: stream)
 }
 
 // MARK: MultipartFormData
@@ -268,12 +268,12 @@ public func upload(
     method: Method,
     _ URLString: URLStringConvertible,
     headers: [String: String]? = nil,
-    multipartFormData: MultipartFormData -> Void,
+    multipartFormData: (MultipartFormData) -> Void,
     encodingMemoryThreshold: UInt64 = Manager.MultipartFormDataEncodingMemoryThreshold,
-    encodingCompletion: (Manager.MultipartFormDataEncodingResult -> Void)?)
+    encodingCompletion: ((Manager.MultipartFormDataEncodingResult) -> Void)?)
 {
     return Manager.sharedInstance.upload(
-        method,
+        method: method,
         URLString,
         headers: headers,
         multipartFormData: multipartFormData,
@@ -292,13 +292,13 @@ public func upload(
     - parameter encodingCompletion:      The closure called when the `MultipartFormData` encoding is complete.
 */
 public func upload(
-    URLRequest: URLRequestConvertible,
-    multipartFormData: MultipartFormData -> Void,
+    urlRequest: URLRequestConvertible,
+    multipartFormData: (MultipartFormData) -> Void,
     encodingMemoryThreshold: UInt64 = Manager.MultipartFormDataEncodingMemoryThreshold,
-    encodingCompletion: (Manager.MultipartFormDataEncodingResult -> Void)?)
+    encodingCompletion: ((Manager.MultipartFormDataEncodingResult) -> Void)?)
 {
     return Manager.sharedInstance.upload(
-        URLRequest,
+        urlRequest: urlRequest,
         multipartFormData: multipartFormData,
         encodingMemoryThreshold: encodingMemoryThreshold,
         encodingCompletion: encodingCompletion
@@ -331,7 +331,7 @@ public func download(
     -> Request
 {
     return Manager.sharedInstance.download(
-        method,
+        method: method,
         URLString,
         parameters: parameters,
         encoding: encoding,
@@ -348,8 +348,8 @@ public func download(
 
     - returns: The created download request.
 */
-public func download(URLRequest: URLRequestConvertible, destination: Request.DownloadFileDestination) -> Request {
-    return Manager.sharedInstance.download(URLRequest, destination: destination)
+public func download(urlRequest: URLRequestConvertible, destination: Request.DownloadFileDestination) -> Request {
+    return Manager.sharedInstance.download(urlRequest: urlRequest, destination: destination)
 }
 
 // MARK: Resume Data
@@ -358,13 +358,13 @@ public func download(URLRequest: URLRequestConvertible, destination: Request.Dow
     Creates a request using the shared manager instance for downloading from the resume data produced from a 
     previous request cancellation.
 
-    - parameter resumeData:  The resume data. This is an opaque data blob produced by `NSURLSessionDownloadTask`
-                             when a task is cancelled. See `NSURLSession -downloadTaskWithResumeData:` for additional 
+    - parameter resumeData:  The resume data. This is an opaque data blob produced by `URLSessionDownloadTask`
+                             when a task is cancelled. See `URLSession -downloadTaskWithResumeData:` for additional
                              information.
     - parameter destination: The closure used to determine the destination of the downloaded file.
 
     - returns: The created download request.
 */
-public func download(resumeData data: NSData, destination: Request.DownloadFileDestination) -> Request {
-    return Manager.sharedInstance.download(data, destination: destination)
+public func download(resumeData data: Data, destination: Request.DownloadFileDestination) -> Request {
+    return Manager.sharedInstance.download(resumeData: data, destination: destination)
 }

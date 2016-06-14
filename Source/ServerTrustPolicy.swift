@@ -62,7 +62,7 @@ public class ServerTrustPolicyManager {
 
 // MARK: -
 
-extension NSURLSession {
+extension URLSession {
     private struct AssociatedKeys {
         static var ManagerKey = "NSURLSession.ServerTrustPolicyManager"
     }
@@ -127,11 +127,11 @@ public enum ServerTrustPolicy {
 
         - returns: All certificates within the given bundle.
     */
-    public static func certificatesInBundle(bundle: NSBundle = NSBundle.mainBundle()) -> [SecCertificate] {
+    public static func certificatesInBundle(bundle: Bundle = Bundle.main()) -> [SecCertificate] {
         var certificates: [SecCertificate] = []
 
         let paths = Set([".cer", ".CER", ".crt", ".CRT", ".der", ".DER"].map { fileExtension in
-            bundle.pathsForResourcesOfType(fileExtension, inDirectory: nil)
+            bundle.pathsForResources(ofType: fileExtension, inDirectory: nil)
         }.flatten())
 
         for path in paths {
@@ -153,11 +153,11 @@ public enum ServerTrustPolicy {
 
         - returns: All public keys within the given bundle.
     */
-    public static func publicKeysInBundle(bundle: NSBundle = NSBundle.mainBundle()) -> [SecKey] {
+    public static func publicKeysInBundle(bundle: Bundle = Bundle.main()) -> [SecKey] {
         var publicKeys: [SecKey] = []
 
-        for certificate in certificatesInBundle(bundle) {
-            if let publicKey = publicKeyForCertificate(certificate) {
+        for certificate in certificatesInBundle(bundle: bundle) {
+            if let publicKey = publicKeyForCertificate(certificate: certificate) {
                 publicKeys.append(publicKey)
             }
         }
@@ -181,25 +181,25 @@ public enum ServerTrustPolicy {
         switch self {
         case let .PerformDefaultEvaluation(validateHost):
             let policy = SecPolicyCreateSSL(true, validateHost ? host as CFString : nil)
-            SecTrustSetPolicies(serverTrust, [policy])
+            SecTrustSetPolicies(serverTrust, [policy!] as NSArray)
 
-            serverTrustIsValid = trustIsValid(serverTrust)
+            serverTrustIsValid = trustIsValid(trust: serverTrust)
         case let .PinCertificates(pinnedCertificates, validateCertificateChain, validateHost):
             if validateCertificateChain {
                 let policy = SecPolicyCreateSSL(true, validateHost ? host as CFString : nil)
-                SecTrustSetPolicies(serverTrust, [policy])
+                SecTrustSetPolicies(serverTrust, [policy!] as NSArray)
 
                 SecTrustSetAnchorCertificates(serverTrust, pinnedCertificates)
                 SecTrustSetAnchorCertificatesOnly(serverTrust, true)
 
-                serverTrustIsValid = trustIsValid(serverTrust)
+                serverTrustIsValid = trustIsValid(trust: serverTrust)
             } else {
-                let serverCertificatesDataArray = certificateDataForTrust(serverTrust)
-                let pinnedCertificatesDataArray = certificateDataForCertificates(pinnedCertificates)
+                let serverCertificatesDataArray = certificateDataForTrust(trust: serverTrust)
+                let pinnedCertificatesDataArray = certificateDataForCertificates(certificates: pinnedCertificates)
 
                 outerLoop: for serverCertificateData in serverCertificatesDataArray {
                     for pinnedCertificateData in pinnedCertificatesDataArray {
-                        if serverCertificateData.isEqualToData(pinnedCertificateData) {
+                        if serverCertificateData.isEqual(to: pinnedCertificateData) {
                             serverTrustIsValid = true
                             break outerLoop
                         }
@@ -211,13 +211,13 @@ public enum ServerTrustPolicy {
 
             if validateCertificateChain {
                 let policy = SecPolicyCreateSSL(true, validateHost ? host as CFString : nil)
-                SecTrustSetPolicies(serverTrust, [policy])
+                SecTrustSetPolicies(serverTrust, [policy!] as NSArray)
 
-                certificateChainEvaluationPassed = trustIsValid(serverTrust)
+                certificateChainEvaluationPassed = trustIsValid(trust: serverTrust)
             }
 
             if certificateChainEvaluationPassed {
-                outerLoop: for serverPublicKey in ServerTrustPolicy.publicKeysForTrust(serverTrust) as [AnyObject] {
+                outerLoop: for serverPublicKey in ServerTrustPolicy.publicKeysForTrust(trust: serverTrust) as [AnyObject] {
                     for pinnedPublicKey in pinnedPublicKeys as [AnyObject] {
                         if serverPublicKey.isEqual(pinnedPublicKey) {
                             serverTrustIsValid = true
@@ -240,12 +240,12 @@ public enum ServerTrustPolicy {
     private func trustIsValid(trust: SecTrust) -> Bool {
         var isValid = false
 
-        var result = SecTrustResultType(kSecTrustResultInvalid)
+        var result = SecTrustResultType.invalid
         let status = SecTrustEvaluate(trust, &result)
 
         if status == errSecSuccess {
-            let unspecified = SecTrustResultType(kSecTrustResultUnspecified)
-            let proceed = SecTrustResultType(kSecTrustResultProceed)
+            let unspecified = SecTrustResultType.unspecified
+            let proceed = SecTrustResultType.proceed
 
             isValid = result == unspecified || result == proceed
         }
@@ -264,7 +264,7 @@ public enum ServerTrustPolicy {
             }
         }
 
-        return certificateDataForCertificates(certificates)
+        return certificateDataForCertificates(certificates: certificates)
     }
 
     private func certificateDataForCertificates(certificates: [SecCertificate]) -> [NSData] {
@@ -279,7 +279,7 @@ public enum ServerTrustPolicy {
         for index in 0..<SecTrustGetCertificateCount(trust) {
             if let
                 certificate = SecTrustGetCertificateAtIndex(trust, index),
-                publicKey = publicKeyForCertificate(certificate)
+                publicKey = publicKeyForCertificate(certificate: certificate)
             {
                 publicKeys.append(publicKey)
             }

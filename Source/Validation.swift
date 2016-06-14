@@ -41,7 +41,7 @@ extension Request {
         A closure used to validate a request that takes a URL request and URL response, and returns whether the 
         request was valid.
     */
-    public typealias Validation = (NSURLRequest?, NSHTTPURLResponse) -> ValidationResult
+    public typealias Validation = (URLRequest?, HTTPURLResponse) -> ValidationResult
 
     /**
         Validates the request, using the specified closure.
@@ -53,7 +53,7 @@ extension Request {
         - returns: The request.
     */
     public func validate(validation: Validation) -> Self {
-        delegate.queue.addOperationWithBlock {
+        delegate.queue.addOperation {
             if let
                 response = self.response where self.delegate.error == nil,
                 case let .Failure(error) = validation(self.request, response)
@@ -76,7 +76,7 @@ extension Request {
 
         - returns: The request.
     */
-    public func validate<S: SequenceType where S.Generator.Element == Int>(statusCode acceptableStatusCode: S) -> Self {
+    public func validate<S: Sequence where S.Iterator.Element == Int>(statusCode acceptableStatusCode: S) -> Self {
         return validate { _, response in
             if acceptableStatusCode.contains(response.statusCode) {
                 return .Success
@@ -96,6 +96,27 @@ extension Request {
             }
         }
     }
+    
+    public func validate(statusCode acceptableStatusCode: Range<Int>) -> Self {
+        return validate { _, response in
+            if acceptableStatusCode.contains(response.statusCode) {
+                return .Success
+            } else {
+                let failureReason = "Response status code was unacceptable: \(response.statusCode)"
+                
+                let error = NSError(
+                    domain: Error.Domain,
+                    code: Error.Code.StatusCodeValidationFailed.rawValue,
+                    userInfo: [
+                        NSLocalizedFailureReasonErrorKey: failureReason,
+                        Error.UserInfoKeys.StatusCode: response.statusCode
+                    ]
+                )
+                
+                return .Failure(error)
+            }
+        }
+    }
 
     // MARK: - Content-Type
 
@@ -105,9 +126,9 @@ extension Request {
 
         init?(_ string: String) {
             let components: [String] = {
-                let stripped = string.stringByTrimmingCharactersInSet(NSCharacterSet.whitespaceAndNewlineCharacterSet())
-                let split = stripped.substringToIndex(stripped.rangeOfString(";")?.startIndex ?? stripped.endIndex)
-                return split.componentsSeparatedByString("/")
+                let stripped = string.trimmingCharacters(in: CharacterSet.whitespacesAndNewlines)
+                let split = stripped.substring(to: stripped.range(of: ";")?.lowerBound ?? stripped.endIndex)
+                return split.components(separatedBy: "/")
             }()
 
             if let
@@ -140,16 +161,16 @@ extension Request {
 
         - returns: The request.
     */
-    public func validate<S : SequenceType where S.Generator.Element == String>(contentType acceptableContentTypes: S) -> Self {
+    public func validate<S : Sequence where S.Iterator.Element == String>(contentType acceptableContentTypes: S) -> Self {
         return validate { _, response in
-            guard let validData = self.delegate.data where validData.length > 0 else { return .Success }
+            guard let validData = self.delegate.data where validData.count > 0 else { return .Success }
 
             if let
-                responseContentType = response.MIMEType,
+                responseContentType = response.mimeType,
                 responseMIMEType = MIMEType(responseContentType)
             {
                 for contentType in acceptableContentTypes {
-                    if let acceptableMIMEType = MIMEType(contentType) where acceptableMIMEType.matches(responseMIMEType) {
+                    if let acceptableMIMEType = MIMEType(contentType) where acceptableMIMEType.matches(MIME: responseMIMEType) {
                         return .Success
                     }
                 }
@@ -164,7 +185,7 @@ extension Request {
             let contentType: String
             let failureReason: String
 
-            if let responseContentType = response.MIMEType {
+            if let responseContentType = response.mimeType {
                 contentType = responseContentType
 
                 failureReason = (
@@ -202,8 +223,8 @@ extension Request {
     public func validate() -> Self {
         let acceptableStatusCodes: Range<Int> = 200..<300
         let acceptableContentTypes: [String] = {
-            if let accept = request?.valueForHTTPHeaderField("Accept") {
-                return accept.componentsSeparatedByString(",")
+            if let accept = request?.value(forHTTPHeaderField: "Accept") {
+                return accept.components(separatedBy: ",")
             }
 
             return ["*/*"]
